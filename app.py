@@ -1,75 +1,76 @@
 import streamlit as st
-import cv2
-import mediapipe as mp
-import urllib.request
-import os
-import av
-from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+import google.generativeai as genai
 
-# 1. Cấu hình giao diện web
-st.set_page_config(page_title="Nhận dạng Ngôn ngữ Ký hiệu", page_icon="🤟")
-st.title("🤟 Nhận dạng Cử chỉ Ký hiệu")
-st.write("Bật camera, giơ tay lên và kết quả sẽ hiển thị ngay trên video!")
-st.write("Các ký hiệu hỗ trợ: 👍 (Like), 👎 (Dislike), ✌️ (Victory), 🤟 (I Love You), ✊ (Nắm tay), 🖐️ (Mở tay).")
+# --- CẤU HÌNH AI ---
+genai.configure(api_key="AIzaSyC5qGYjTI_SldZ_r2eIAqtZYn-wYaA1oEw")
+model = genai.GenerativeModel('models/gemini-3.1-flash-lite')
 
-# 2. Tải mô hình AI
-@st.cache_resource
-def load_model():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'gesture_recognizer.task')
+# --- GIAO DIỆN ---
+st.set_page_config(page_title="Trợ lý Dinh dưỡng AI", layout="wide")
+
+st.title("🥗 Trợ lý Dinh dưỡng & Sức khỏe AI")
+st.markdown("---")
+
+# --- PHẦN 1: NHẬP THÔNG TIN (SIDEBAR) ---
+with st.sidebar:
+    st.header("Thông tin cá nhân")
+    weight = st.number_input("Cân nặng (kg)", min_value=30.0, max_value=200.0, value=60.0)
+    height = st.number_input("Chiều cao (cm)", min_value=100.0, max_value=250.0, value=165.0)
+    age = st.number_input("Tuổi", min_value=1, max_value=100, value=25)
+    gender = st.selectbox("Giới tính", ["Nam", "Nữ"])
+    activity = st.selectbox("Mức độ vận động", [
+        "Ít vận động (Văn phòng)",
+        "Vận động nhẹ (1-3 buổi/tuần)",
+        "Vận động vừa (3-5 buổi/tuần)",
+        "Vận động nặng (6-7 buổi/tuần)"
+    ])
+    goal = st.selectbox("Mục tiêu", ["Giảm cân", "Giữ cân", "Tăng cơ"])
+
+# --- PHẦN 2: TÍNH TOÁN CHỈ SỐ ---
+# Công thức BMI
+bmi = weight / ((height/100) ** 2)
+
+# Tính BMR sơ bộ (Công thức Mifflin-St Jeor)
+if gender == "Nam":
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5
+else:
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161
+
+# Quy đổi mức độ vận động sang TDEE
+activity_multipliers = {
+    "Ít vận động (Văn phòng)": 1.2,
+    "Vận động nhẹ (1-3 buổi/tuần)": 1.375,
+    "Vận động vừa (3-5 buổi/tuần)": 1.55,
+    "Vận động nặng (6-7 buổi/tuần)": 1.725
+}
+tdee = bmr * activity_multipliers[activity]
+
+# --- HIỂN THỊ KẾT QUẢ ---
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Chỉ số BMI", f"{bmi:.1f}")
+with col2:
+    st.metric("Lượng Calo cần thiết (TDEE)", f"{int(tdee)} kcal")
+with col3:
+    status = "Bình thường" if 18.5 <= bmi <= 24.9 else "Cần chú ý"
+    st.metric("Tình trạng", status)
+
+# --- PHẦN 3: TƯ VẤN THỰC ĐƠN BẰNG AI ---
+st.markdown("---")
+st.subheader("🤖 AI Gợi ý thực đơn trong ngày")
+
+if st.button("Tạo thực đơn cá nhân hóa"):
+    prompt = f"""
+    Tôi là {gender}, {age} tuổi, nặng {weight}kg, cao {height}cm. 
+    Mức độ vận động: {activity}. Mục tiêu của tôi là {goal}.
+    Chỉ số TDEE của tôi là {int(tdee)} kcal.
+    Hãy gợi ý cho tôi thực đơn 3 bữa (Sáng, Trưa, Tối) sao cho lành mạnh, 
+    phù hợp với người Việt Nam và đạt mục tiêu {goal}.
+    Hãy trình bày dưới dạng danh sách gạch đầu dòng rõ ràng.
+    """
     
-    if not os.path.exists(model_path):
-        url = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'
-        urllib.request.urlretrieve(url, model_path)
-    
-    options = mp.tasks.vision.GestureRecognizerOptions(
-        base_options=mp.tasks.BaseOptions(model_asset_path=model_path),
-        running_mode=mp.tasks.vision.RunningMode.IMAGE
-    )
-    return mp.tasks.vision.GestureRecognizer.create_from_options(options)
+    with st.spinner("AI đang lên thực đơn cho bạn..."):
+        response = model.generate_content(prompt)
+        st.write(response.text)
 
-recognizer = load_model()
-
-# 3. Hàm xử lý: Nhận dạng và IN CHỮ LÊN MÀN HÌNH
-def process_frame(frame: av.VideoFrame) -> av.VideoFrame:
-    # Chuyển frame thành ảnh
-    img = frame.to_ndarray(format="bgr24")
-    img = cv2.flip(img, 1) # Lật ảnh như soi gương
-    
-    # AI xử lý
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img)
-    recognition_result = recognizer.recognize(mp_image)
-    
-    # NẾU PHÁT HIỆN CỬ CHỈ -> VẼ CHỮ LÊN MÀN HÌNH
-    if recognition_result.gestures:
-        for gesture in recognition_result.gestures:
-            name = gesture[0].category_name
-            score = gesture[0].score
-            
-            # Chỉ hiện chữ nếu AI chắc chắn > 50%
-            if score > 0.5:
-                text = f"{name} ({score*100:.0f}%)"
-                # Lệnh vẽ chữ: Màu xanh lá cây (0, 255, 0), font to (chỉ số 2), nét đậm (chỉ số 4)
-                cv2.putText(img, text, (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4, cv2.LINE_AA)
-                
-    # Trả lại khung hình đã có chữ lên web
-    return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-# 4. Vượt tường lửa mạng để Camera không bị xoay vòng
-rtc_configuration = RTCConfiguration(
-    {"iceServers": [
-        {"urls": ["stun:stun.l.google.com:19302"]},
-        {"urls": ["stun:stun1.l.google.com:19302"]},
-        {"urls": ["stun:stun2.l.google.com:19302"]},
-        {"urls": ["stun:stun3.l.google.com:19302"]},
-        {"urls": ["stun:stun4.l.google.com:19302"]},
-    ]}
-)
-
-# 5. Khởi động luồng Camera
-webrtc_streamer(
-    key="sign_language",
-    video_frame_callback=process_frame,
-    rtc_configuration=rtc_configuration,
-    media_stream_constraints={"video": True, "audio": False}
-)
+st.info("Lưu ý: Các chỉ số và thực đơn mang tính chất tham khảo. Hãy tham vấn bác sĩ trước khi thay đổi chế độ ăn nghiêm ngặt.")
