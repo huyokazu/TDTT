@@ -56,9 +56,15 @@ def process_frame(frame: av.VideoFrame) -> av.VideoFrame:
     # Trả lại khung hình đã vẽ chữ cho người dùng
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# 4. Cấu hình máy chủ kết nối WebRTC (đảm bảo camera hoạt động mượt trên mạng)
+# 4. Cấu hình máy chủ kết nối WebRTC (Vượt tường lửa mạng)
 rtc_configuration = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    {"iceServers": [
+        {"urls": ["stun:stun.l.google.com:19302"]},
+        {"urls": ["stun:stun1.l.google.com:19302"]},
+        {"urls": ["stun:stun2.l.google.com:19302"]},
+        {"urls": ["stun:stun3.l.google.com:19302"]},
+        {"urls": ["stun:stun4.l.google.com:19302"]},
+    ]}
 )
 
 # 5. Khởi chạy luồng camera trên web
