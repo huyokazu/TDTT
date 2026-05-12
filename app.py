@@ -14,9 +14,12 @@ st.write("Bật camera và thử đưa các ký hiệu: 👍, 👎, ✌️ (Vict
 # 2. Tải và nạp mô hình AI (Sử dụng cache để không phải tải lại mỗi lần có frame mới)
 @st.cache_resource
 def load_model():
-    model_path = 'gesture_recognizer.task'
+    # Lấy đường dẫn tuyệt đối của thư mục đang chứa file app.py
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(current_dir, 'gesture_recognizer.task')
+    
     if not os.path.exists(model_path):
-        st.info("Đang tải mô hình AI từ Google lần đầu tiên. Vui lòng đợi...")
+        st.info("Đang tải mô hình AI từ Google lần đầu tiên. Vui lòng đợi khoảng vài giây...")
         url = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'
         urllib.request.urlretrieve(url, model_path)
     
